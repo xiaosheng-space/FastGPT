@@ -1,19 +1,19 @@
 import React, { useState, Dispatch, useCallback } from 'react';
 import { FormControl, Box, Input, Button } from '@chakra-ui/react';
 import { useForm } from 'react-hook-form';
-import { PageTypeEnum } from '@/constants/user';
+import { LoginPageTypeEnum } from '@/web/support/user/login/constants';
 import { postRegister } from '@/web/support/user/api';
 import { useSendCode } from '@/web/support/user/hooks/useSendCode';
 import type { ResLogin } from '@/global/support/api/userRes';
 import { useToast } from '@fastgpt/web/hooks/useToast';
 import { postCreateApp } from '@/web/core/app/api';
-import { appTemplates } from '@/web/core/app/templates';
+import { defaultAppTemplates } from '@/web/core/app/templates';
 import { useSystemStore } from '@/web/common/system/useSystemStore';
 import { useTranslation } from 'next-i18next';
 
 interface Props {
   loginSuccess: (e: ResLogin) => void;
-  setPageType: Dispatch<`${PageTypeEnum}`>;
+  setPageType: Dispatch<`${LoginPageTypeEnum}`>;
 }
 
 interface RegisterType {
@@ -68,7 +68,7 @@ const RegisterForm = ({ setPageType, loginSuccess }: Props) => {
         });
         // auto register template app
         setTimeout(() => {
-          appTemplates.forEach((template) => {
+          defaultAppTemplates.forEach((template) => {
             postCreateApp({
               avatar: template.avatar,
               name: t(template.name),
@@ -85,7 +85,7 @@ const RegisterForm = ({ setPageType, loginSuccess }: Props) => {
       }
       setRequesting(false);
     },
-    [loginSuccess, toast]
+    [loginSuccess, t, toast]
   );
 
   return (
@@ -181,7 +181,7 @@ const RegisterForm = ({ setPageType, loginSuccess }: Props) => {
           type="submit"
           mt={6}
           w={'100%'}
-          size={['md', 'lg']}
+          size={['md', 'md']}
           colorScheme="blue"
           isLoading={requesting}
           onClick={handleSubmit(onclickRegister)}
@@ -196,7 +196,7 @@ const RegisterForm = ({ setPageType, loginSuccess }: Props) => {
           color={'primary.700'}
           cursor={'pointer'}
           _hover={{ textDecoration: 'underline' }}
-          onClick={() => setPageType('login')}
+          onClick={() => setPageType(LoginPageTypeEnum.passwordLogin)}
         >
           已有账号，去登录
         </Box>

@@ -1,71 +1,62 @@
 import React, { useCallback } from 'react';
-import { Box, Flex, useDisclosure, useTheme } from '@chakra-ui/react';
+import { Box, Flex, useTheme } from '@chakra-ui/react';
 import { useSystemStore } from '@/web/common/system/useSystemStore';
 import { useRouter } from 'next/router';
 import dynamic from 'next/dynamic';
 import { useUserStore } from '@/web/support/user/useUserStore';
-import { useConfirm } from '@/web/common/hooks/useConfirm';
+import { useConfirm } from '@fastgpt/web/hooks/useConfirm';
 import PageContainer from '@/components/PageContainer';
 import SideTabs from '@/components/SideTabs';
-import Tabs from '@/components/Tabs';
+import LightRowTabs from '@fastgpt/web/components/common/Tabs/LightRowTabs';
 import UserInfo from './components/Info';
 import { serviceSideProps } from '@/web/common/utils/i18n';
 import { useTranslation } from 'next-i18next';
 import Script from 'next/script';
 
 const Promotion = dynamic(() => import('./components/Promotion'));
+const UsageTable = dynamic(() => import('./components/UsageTable'));
 const BillTable = dynamic(() => import('./components/BillTable'));
-const PayRecordTable = dynamic(() => import('./components/PayRecordTable'));
 const InformTable = dynamic(() => import('./components/InformTable'));
 const ApiKeyTable = dynamic(() => import('./components/ApiKeyTable'));
-const PriceBox = dynamic(() => import('@/components/support/wallet/Price'));
+const Individuation = dynamic(() => import('./components/Individuation'));
 
 enum TabEnum {
   'info' = 'info',
   'promotion' = 'promotion',
+  'usage' = 'usage',
   'bill' = 'bill',
-  'price' = 'price',
-  'pay' = 'pay',
   'inform' = 'inform',
+  'individuation' = 'individuation',
   'apikey' = 'apikey',
   'loginout' = 'loginout'
 }
 
-const Account = ({ currentTab }: { currentTab: `${TabEnum}` }) => {
+const Account = ({ currentTab }: { currentTab: TabEnum }) => {
   const { t } = useTranslation();
   const { userInfo, setUserInfo } = useUserStore();
-  const { feConfigs, isPc } = useSystemStore();
+  const { feConfigs, isPc, systemVersion } = useSystemStore();
 
   const tabList = [
     {
       icon: 'support/user/userLight',
       label: t('user.Personal Information'),
-      id: TabEnum.info
+      value: TabEnum.info
     },
     ...(feConfigs?.isPlus
       ? [
           {
-            icon: 'support/bill/billRecordLight',
+            icon: 'support/usage/usageRecordLight',
             label: t('user.Usage Record'),
-            id: TabEnum.bill
+            value: TabEnum.usage
           }
         ]
       : []),
-    ...(feConfigs?.show_pay && userInfo?.team.canWrite
+    ...(feConfigs?.show_pay && userInfo?.team?.permission.hasWritePer
       ? [
           {
-            icon: 'support/pay/payRecordLight',
-            label: t('user.Recharge Record'),
-            id: TabEnum.pay
-          }
-        ]
-      : []),
-    ...(feConfigs?.show_pay
-      ? [
-          {
-            icon: 'support/pay/priceLight',
-            label: t('support.user.Price'),
-            id: TabEnum.price
+            icon: 'support/bill/payRecordLight',
+            label: t('support.wallet.Bills'),
+            value: TabEnum.bill
           }
         ]
       : []),
@@ -75,25 +66,30 @@ const Account = ({ currentTab }: { currentTab: `${TabEnum}` }) => {
           {
             icon: 'support/account/promotionLight',
             label: t('user.Promotion Record'),
-            id: TabEnum.promotion
+            value: TabEnum.promotion
           }
         ]
       : []),
-    ...(userInfo?.team.canWrite
+    ...(userInfo?.team?.permission.hasWritePer
       ? [
           {
             icon: 'support/outlink/apikeyLight',
             label: t('user.apikey.key'),
-            id: TabEnum.apikey
+            value: TabEnum.apikey
           }
         ]
       : []),
+    {
+      icon: 'support/user/individuation',
+      label: t('support.account.Individuation'),
+      value: TabEnum.individuation
+    },
     ...(feConfigs.isPlus
       ? [
           {
             icon: 'support/user/informLight',
             label: t('user.Notice'),
-            id: TabEnum.inform
+            value: TabEnum.inform
           }
         ]
       : []),
@@ -101,18 +97,13 @@ const Account = ({ currentTab }: { currentTab: `${TabEnum}` }) => {
     {
       icon: 'support/account/loginoutLight',
       label: t('user.Sign Out'),
-      id: TabEnum.loginout
+      value: TabEnum.loginout
     }
   ];
 
   const { openConfirm, ConfirmModal } = useConfirm({
     content: '确认退出登录？'
   });
-  const {
-    isOpen: isOpenPriceBox,
-    onOpen: onOpenPriceBox,
-    onClose: onClosePriceBox
-  } = useDisclosure();
 
   const router = useRouter();
   const theme = useTheme();
@@ -124,8 +115,6 @@ const Account = ({ currentTab }: { currentTab: `${TabEnum}` }) => {
           setUserInfo(null);
           router.replace('/login');
         })();
-      } else if (tab === TabEnum.price) {
-        onOpenPriceBox();
       } else {
         router.replace({
           query: {
@@ -134,7 +123,7 @@ const Account = ({ currentTab }: { currentTab: `${TabEnum}` }) => {
         });
       }
     },
-    [onOpenPriceBox, openConfirm, router, setUserInfo]
+    [openConfirm, router, setUserInfo]
   );
 
   return (
@@ -150,44 +139,49 @@ const Account = ({ currentTab }: { currentTab: `${TabEnum}` }) => {
               flex={'0 0 200px'}
               borderRight={theme.borders.base}
             >
-              <SideTabs
+              <SideTabs<TabEnum>
                 flex={1}
                 mx={'auto'}
                 mt={2}
                 w={'100%'}
                 list={tabList}
-                activeId={currentTab}
+                value={currentTab}
                 onChange={setCurrentTab}
               />
+              <Flex alignItems={'center'}>
+                <Box w={'8px'} h={'8px'} borderRadius={'50%'} bg={'#67c13b'} />
+                <Box fontSize={'md'} ml={2}>
+                  V{systemVersion}
+                </Box>
+              </Flex>
             </Flex>
           ) : (
             <Box mb={3}>
-              <Tabs
+              <LightRowTabs<TabEnum>
                 m={'auto'}
                 size={isPc ? 'md' : 'sm'}
                 list={tabList.map((item) => ({
-                  id: item.id,
+                  value: item.value,
                   label: item.label
                 }))}
-                activeId={currentTab}
+                value={currentTab}
                 onChange={setCurrentTab}
               />
             </Box>
           )}
 
-          <Box flex={'1 0 0'} h={'100%'} pb={[4, 0]}>
+          <Box flex={'1 0 0'} h={'100%'} pb={[4, 0]} overflow={'auto'}>
             {currentTab === TabEnum.info && <UserInfo />}
             {currentTab === TabEnum.promotion && <Promotion />}
+            {currentTab === TabEnum.usage && <UsageTable />}
             {currentTab === TabEnum.bill && <BillTable />}
-            {currentTab === TabEnum.pay && <PayRecordTable />}
+            {currentTab === TabEnum.individuation && <Individuation />}
             {currentTab === TabEnum.inform && <InformTable />}
             {currentTab === TabEnum.apikey && <ApiKeyTable />}
           </Box>
         </Flex>
         <ConfirmModal />
       </PageContainer>
-
-      {isOpenPriceBox && <PriceBox onClose={onClosePriceBox} />}
     </>
   );
 };
@@ -196,7 +190,7 @@ export async function getServerSideProps(content: any) {
   return {
     props: {
       currentTab: content?.query?.currentTab || TabEnum.info,
-      ...(await serviceSideProps(content))
+      ...(await serviceSideProps(content, ['publish', 'user']))
     }
   };
 }

@@ -34,6 +34,16 @@ export async function connectMongo({
       retryReads: true
     });
 
+    mongoose.connection.on('error', (error) => {
+      console.log('mongo error', error);
+      global.mongodb?.disconnect();
+      global.mongodb = undefined;
+    });
+    mongoose.connection.on('disconnected', () => {
+      console.log('mongo disconnected');
+      global.mongodb = undefined;
+    });
+
     console.log('mongo connected');
 
     afterHook && (await afterHook());

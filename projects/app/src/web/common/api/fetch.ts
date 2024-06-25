@@ -1,15 +1,16 @@
-import { sseResponseEventEnum } from '@fastgpt/service/common/response/constant';
+import { SseResponseEventEnum } from '@fastgpt/global/core/workflow/runtime/constants';
 import { getErrText } from '@fastgpt/global/common/error/utils';
 import type { ChatHistoryItemResType } from '@fastgpt/global/core/chat/type.d';
-import { StartChatFnProps } from '@/components/ChatBox';
-import { getToken } from '@/web/support/user/auth';
-import { ModuleOutputKeyEnum } from '@fastgpt/global/core/module/constants';
+import type { StartChatFnProps } from '@/components/ChatBox/type.d';
+import { DispatchNodeResponseKeyEnum } from '@fastgpt/global/core/workflow/runtime/constants';
 import dayjs from 'dayjs';
 import {
   // refer to https://github.com/ChatGPTNextWeb/ChatGPT-Next-Web
   EventStreamContentType,
   fetchEventSource
 } from '@fortaine/fetch-event-source';
+import { TeamErrEnum } from '@fastgpt/global/common/error/code/team';
+import { useSystemStore } from '../system/useSystemStore';
 
 type StreamFetchProps = {
   url?: string;
@@ -17,10 +18,12 @@ type StreamFetchProps = {
   onMessage: StartChatFnProps['generatingMessage'];
   abortCtrl: AbortController;
 };
-type StreamResponseType = {
+export type StreamResponseType = {
   responseText: string;
-  [ModuleOutputKeyEnum.responseData]: ChatHistoryItemResType[];
+  [DispatchNodeResponseKeyEnum.nodeResponse]: ChatHistoryItemResType[];
 };
+class FatalError extends Error {}
+
 export const streamFetch = ({
   url = '/api/v1/chat/completions',
   data,
@@ -34,13 +37,22 @@ export const streamFetch = ({
 
     // response data
     let responseText = '';
-    let remainText = '';
-    let errMsg = '';
+    let responseQueue: (
+      | { event: SseResponseEventEnum.fastAnswer | SseResponseEventEnum.answer; text: string }
+      | {
+          event:
+            | SseResponseEventEnum.toolCall
+            | SseResponseEventEnum.toolParams
+            | SseResponseEventEnum.toolResponse;
+          [key: string]: any;
+        }
+    )[] = [];
+    let errMsg: string | undefined;
     let responseData: ChatHistoryItemResType[] = [];
     let finished = false;
 
     const finish = () => {
-      if (errMsg) {
+      if (errMsg !== undefined) {
         return failedFinish();
       }
       return resolve({
@@ -51,31 +63,40 @@ export const streamFetch = ({
     const failedFinish = (err?: any) => {
       finished = true;
       reject({
-        message: getErrText(err, errMsg || '响应过程出现异常~'),
+        message: getErrText(err, errMsg ?? '响应过程出现异常~'),
         responseText
       });
     };
 
+    const isAnswerEvent = (event: SseResponseEventEnum) =>
+      event === SseResponseEventEnum.answer || event === SseResponseEventEnum.fastAnswer;
     // animate response to make it looks smooth
     function animateResponseText() {
       // abort message
       if (abortCtrl.signal.aborted) {
-        onMessage({ text: remainText });
-        responseText += remainText;
+        responseQueue.forEach((item) => {
+          onMessage(item);
+          if (isAnswerEvent(item.event)) {
+            responseText += item.text;
+          }
+        });
         return finish();
       }
 
-      if (remainText) {
-        const fetchCount = Math.max(1, Math.round(remainText.length / 60));
-        const fetchText = remainText.slice(0, fetchCount);
+      if (responseQueue.length > 0) {
+        const fetchCount = Math.max(1, Math.round(responseQueue.length / 30));
+        for (let i = 0; i < fetchCount; i++) {
+          const item = responseQueue[i];
+          onMessage(item);
+          if (isAnswerEvent(item.event)) {
+            responseText += item.text;
+          }
+        }
 
-        onMessage({ text: fetchText });
-
-        responseText += fetchText;
-        remainText = remainText.slice(fetchCount);
+        responseQueue = responseQueue.slice(fetchCount);
       }
 
-      if (finished && !remainText) {
+      if (finished && responseQueue.length === 0) {
         return finish();
       }
 
@@ -87,13 +108,12 @@ export const streamFetch = ({
     try {
       // auto complete variables
       const variables = data?.variables || {};
-      variables.cTime = dayjs().format('YYYY-MM-DD HH:mm:ss');
+      variables.cTime = dayjs().format('YYYY-MM-DD HH:mm:ss dddd');
 
       const requestData = {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          token: getToken()
+          'Content-Type': 'application/json'
         },
         signal: abortCtrl.signal,
         body: JSON.stringify({
@@ -125,7 +145,10 @@ export const streamFetch = ({
             try {
               failedFinish(await res.clone().json());
             } catch {
-              failedFinish(await res.clone().text());
+              const errText = await res.clone().text();
+              if (!errText.startsWith('event: error')) {
+                failedFinish();
+              }
             }
           }
         },
@@ -142,28 +165,58 @@ export const streamFetch = ({
               return {};
             }
           })();
-
-          if (event === sseResponseEventEnum.answer) {
-            const answer: string = parseJson?.choices?.[0]?.delta?.content || '';
-            remainText += answer;
+          // console.log(parseJson, event);
+          if (event === SseResponseEventEnum.answer) {
+            const text = parseJson.choices?.[0]?.delta?.content || '';
+            for (const item of text) {
+              responseQueue.push({
+                event,
+                text: item
+              });
+            }
+          } else if (event === SseResponseEventEnum.fastAnswer) {
+            const text = parseJson.choices?.[0]?.delta?.content || '';
+            responseQueue.push({
+              event,
+              text
+            });
           } else if (
-            event === sseResponseEventEnum.moduleStatus &&
-            parseJson?.name &&
-            parseJson?.status
+            event === SseResponseEventEnum.toolCall ||
+            event === SseResponseEventEnum.toolParams ||
+            event === SseResponseEventEnum.toolResponse
           ) {
-            onMessage(parseJson);
-          } else if (event === sseResponseEventEnum.appStreamResponse && Array.isArray(parseJson)) {
+            responseQueue.push({
+              event,
+              ...parseJson
+            });
+          } else if (event === SseResponseEventEnum.flowNodeStatus) {
+            onMessage({
+              event,
+              ...parseJson
+            });
+          } else if (event === SseResponseEventEnum.flowResponses && Array.isArray(parseJson)) {
             responseData = parseJson;
-          } else if (event === sseResponseEventEnum.error) {
+          } else if (event === SseResponseEventEnum.updateVariables) {
+            onMessage({
+              event,
+              variables: parseJson
+            });
+          } else if (event === SseResponseEventEnum.error) {
+            if (parseJson.statusText === TeamErrEnum.aiPointsNotEnough) {
+              useSystemStore.getState().setIsNotSufficientModal(true);
+            }
             errMsg = getErrText(parseJson, '流响应错误');
           }
         },
         onclose() {
           finished = true;
         },
-        onerror(e) {
+        onerror(err) {
+          if (err instanceof FatalError) {
+            throw err;
+          }
           clearTimeout(timeoutId);
-          failedFinish(getErrText(e));
+          failedFinish(getErrText(err));
         },
         openWhenHidden: true
       });

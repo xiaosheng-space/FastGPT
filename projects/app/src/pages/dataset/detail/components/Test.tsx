@@ -1,30 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Box,
-  Textarea,
-  Button,
-  Flex,
-  useTheme,
-  useDisclosure,
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
-  TableContainer
-} from '@chakra-ui/react';
+import { Box, Textarea, Button, Flex, useTheme, useDisclosure } from '@chakra-ui/react';
 import { useDatasetStore } from '@/web/core/dataset/store/dataset';
 import { useSearchTestStore, SearchTestStoreItemType } from '@/web/core/dataset/store/searchTest';
 import { postSearchText } from '@/web/core/dataset/api';
 import MyIcon from '@fastgpt/web/components/common/Icon';
-import { useRequest } from '@/web/common/hooks/useRequest';
-import { formatTimeToChatTime } from '@/utils/tools';
+import { useRequest } from '@fastgpt/web/hooks/useRequest';
+import { formatTimeToChatTime } from '@fastgpt/global/common/string/time';
 import { getErrText } from '@fastgpt/global/common/error/utils';
 import { useToast } from '@fastgpt/web/hooks/useToast';
 import { customAlphabet } from 'nanoid';
-import MyTooltip from '@/components/MyTooltip';
-import { QuestionOutlineIcon } from '@chakra-ui/icons';
+import MyTooltip from '@fastgpt/web/components/common/MyTooltip';
 import { useTranslation } from 'next-i18next';
 import { SearchTestResponse } from '@/global/core/dataset/api';
 import {
@@ -33,18 +18,20 @@ import {
 } from '@fastgpt/global/core/dataset/constants';
 import dynamic from 'next/dynamic';
 import { useForm } from 'react-hook-form';
-import MySelect from '@/components/Select';
+import MySelect from '@fastgpt/web/components/common/MySelect';
 import { useSelectFile } from '@/web/common/file/hooks/useSelectFile';
 import { fileDownload } from '@/web/common/file/utils';
-import { readCsvContent } from '@fastgpt/web/common/file/read/csv';
-import { delay } from '@fastgpt/global/common/system/utils';
 import QuoteItem from '@/components/core/dataset/QuoteItem';
-import { ModuleInputKeyEnum } from '@fastgpt/global/core/module/constants';
 import { useSystemStore } from '@/web/common/system/useSystemStore';
+import SearchParamsTip from '@/components/core/dataset/SearchParamsTip';
+import { useContextSelector } from 'use-context-selector';
+import { DatasetPageContext } from '@/web/core/dataset/context/datasetPageContext';
+import EmptyTip from '@fastgpt/web/components/common/EmptyTip';
+import QuestionTip from '@fastgpt/web/components/common/MyTooltip/QuestionTip';
 
 const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz1234567890', 12);
 
-const DatasetParamsModal = dynamic(() => import('@/components/core/module/DatasetParamsModal'));
+const DatasetParamsModal = dynamic(() => import('@/components/core/app/DatasetParamsModal'));
 
 type FormType = {
   inputText: string;
@@ -53,7 +40,6 @@ type FormType = {
     similarity?: number;
     limit?: number;
     usingReRank?: boolean;
-    searchEmptyText?: string;
     datasetSearchUsingExtensionQuery?: boolean;
     datasetSearchExtensionModel?: string;
     datasetSearchExtensionBg?: string;
@@ -65,7 +51,7 @@ const Test = ({ datasetId }: { datasetId: string }) => {
   const theme = useTheme();
   const { toast } = useToast();
   const { llmModelList } = useSystemStore();
-  const { datasetDetail } = useDatasetStore();
+  const datasetDetail = useContextSelector(DatasetPageContext, (v) => v.datasetDetail);
   const { pushDatasetTestItem } = useSearchTestStore();
   const [inputType, setInputType] = useState<'text' | 'file'>('text');
   const [datasetTestItem, setDatasetTestItem] = useState<SearchTestStoreItemType>();
@@ -121,7 +107,8 @@ const Test = ({ datasetId }: { datasetId: string }) => {
         searchMode: res.searchMode,
         usingReRank: res.usingReRank,
         limit: res.limit,
-        similarity: res.similarity
+        similarity: res.similarity,
+        queryExtensionModel: res.queryExtensionModel
       };
       pushDatasetTestItem(testItem);
       setDatasetTestItem(testItem);
@@ -133,34 +120,6 @@ const Test = ({ datasetId }: { datasetId: string }) => {
       });
     }
   });
-  // const { mutate: onFileTest, isLoading: fileTestIsLoading } = useRequest({
-  //   mutationFn: async ({ searchParams }: FormType) => {
-  //     if (!selectFile) return Promise.reject('File is not selected');
-  //     const { data } = await readCsvContent({ file: selectFile });
-  //     const testList = data.slice(0, 100);
-  //     const results: SearchTestResponse[] = [];
-
-  //     for await (const item of testList) {
-  //       try {
-  //         const result = await postSearchText({ datasetId, text: item[0].trim(), ...searchParams });
-  //         results.push(result);
-  //       } catch (error) {
-  //         await delay(500);
-  //       }
-  //     }
-
-  //     return results;
-  //   },
-  //   onSuccess(res: SearchTestResponse[]) {
-  //     console.log(res);
-  //   },
-  //   onError(err) {
-  //     toast({
-  //       title: getErrText(err),
-  //       status: 'error'
-  //     });
-  //   }
-  // });
 
   const onSelectFile = async (files: File[]) => {
     const file = files[0];
@@ -363,7 +322,6 @@ const TestHistories = React.memo(function TestHistories({
   setDatasetTestItem: React.Dispatch<React.SetStateAction<SearchTestStoreItemType | undefined>>;
 }) {
   const { t } = useTranslation();
-  const theme = useTheme();
   const { datasetTestList, delDatasetTestItemById } = useSearchTestStore();
 
   const testHistories = useMemo(
@@ -374,7 +332,7 @@ const TestHistories = React.memo(function TestHistories({
     <>
       <Flex alignItems={'center'} color={'myGray.900'}>
         <MyIcon mr={2} name={'history'} w={'18px'} h={'18px'} color={'myGray.900'} />
-        <Box fontSize={'xl'}>{t('core.dataset.test.test history')}</Box>
+        <Box fontSize={'md'}>{t('core.dataset.test.test history')}</Box>
       </Flex>
       <Box mt={2}>
         {testHistories.map((item) => (
@@ -459,69 +417,30 @@ const TestResults = React.memo(function TestResults({
   return (
     <>
       {!datasetTestItem?.results || datasetTestItem.results.length === 0 ? (
-        <Flex
-          mt={[10, 0]}
-          h={'100%'}
-          flexDirection={'column'}
-          alignItems={'center'}
-          justifyContent={'center'}
-        >
-          <MyIcon name={'empty'} color={'transparent'} w={'54px'} />
-          <Box mt={3} color={'myGray.600'}>
-            {t('core.dataset.test.test result placeholder')}
-          </Box>
-        </Flex>
+        <EmptyTip text={t('core.dataset.test.test result placeholder')} mt={[10, '20vh']} />
       ) : (
         <>
-          <Flex fontSize={'xl'} color={'myGray.900'} alignItems={'center'}>
+          <Flex fontSize={'md'} color={'myGray.900'} alignItems={'center'}>
             <MyIcon name={'common/paramsLight'} w={'18px'} mr={2} />
             {t('core.dataset.test.Test params')}
           </Flex>
-          <TableContainer
-            mt={3}
-            bg={'primary.50'}
-            borderRadius={'lg'}
-            borderWidth={'1px'}
-            borderColor={'primary.1'}
-          >
-            <Table>
-              <Thead>
-                <Tr color={'myGray.600'}>
-                  <Th>{t('core.dataset.search.search mode')}</Th>
-                  <Th>{t('core.dataset.search.ReRank')}</Th>
-                  <Th>{t('core.dataset.search.Max Tokens')}</Th>
-                  <Th>{t('core.dataset.search.Min Similarity')}</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                <Tr color={'myGray.800'}>
-                  <Td pt={0}>
-                    <Flex alignItems={'center'}>
-                      <MyIcon
-                        name={DatasetSearchModeMap[datasetTestItem.searchMode]?.icon as any}
-                        w={'12px'}
-                        mr={'1px'}
-                      />
-                      {t(DatasetSearchModeMap[datasetTestItem.searchMode]?.title)}
-                    </Flex>
-                  </Td>
-                  <Td pt={0}>{datasetTestItem.usingReRank ? '✅' : '❌'}</Td>
-                  <Td pt={0}>{datasetTestItem.limit}</Td>
-                  <Td pt={0}>{datasetTestItem.similarity}</Td>
-                </Tr>
-              </Tbody>
-            </Table>
-          </TableContainer>
+          <Box mt={3}>
+            <SearchParamsTip
+              searchMode={datasetTestItem.searchMode}
+              similarity={datasetTestItem.similarity}
+              limit={datasetTestItem.limit}
+              usingReRank={datasetTestItem.usingReRank}
+              queryExtensionModel={datasetTestItem.queryExtensionModel}
+            />
+          </Box>
 
           <Flex mt={5} mb={3} alignItems={'center'}>
-            <Flex fontSize={'xl'} color={'myGray.900'} alignItems={'center'}>
+            <Flex fontSize={'md'} color={'myGray.900'} alignItems={'center'}>
               <MyIcon name={'common/resultLight'} w={'18px'} mr={2} />
               {t('core.dataset.test.Test Result')}
             </Flex>
-            <MyTooltip label={t('core.dataset.test.test result tip')} forceShow>
-              <QuestionOutlineIcon mx={2} color={'myGray.600'} cursor={'pointer'} fontSize={'lg'} />
-            </MyTooltip>
-            <Box>({datasetTestItem.duration})</Box>
+            <QuestionTip ml={1} label={t('core.dataset.test.test result tip')} />
+            <Box ml={2}>({datasetTestItem.duration})</Box>
           </Flex>
           <Box mt={1} gap={4}>
             {datasetTestItem?.results.map((item, index) => (

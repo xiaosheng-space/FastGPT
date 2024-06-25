@@ -10,21 +10,19 @@ import styles from './index.module.scss';
 import dynamic from 'next/dynamic';
 
 import { Link, Button } from '@chakra-ui/react';
-import MyTooltip from '../MyTooltip';
+import MyTooltip from '@fastgpt/web/components/common/MyTooltip';
 import { useTranslation } from 'next-i18next';
 import { EventNameEnum, eventBus } from '@/web/common/utils/eventbus';
 import MyIcon from '@fastgpt/web/components/common/Icon';
-import { getFileAndOpen } from '@/web/core/dataset/utils';
 import { MARKDOWN_QUOTE_SIGN } from '@fastgpt/global/core/chat/constants';
 
-const CodeLight = dynamic(() => import('./CodeLight'));
-const MermaidCodeBlock = dynamic(() => import('./img/MermaidCodeBlock'));
-const MdImage = dynamic(() => import('./img/Image'));
-const EChartsCodeBlock = dynamic(() => import('./img/EChartsCodeBlock'));
+const CodeLight = dynamic(() => import('./CodeLight'), { ssr: false });
+const MermaidCodeBlock = dynamic(() => import('./img/MermaidCodeBlock'), { ssr: false });
+const MdImage = dynamic(() => import('./img/Image'), { ssr: false });
+const EChartsCodeBlock = dynamic(() => import('./img/EChartsCodeBlock'), { ssr: false });
 
-const ChatGuide = dynamic(() => import('./chat/Guide'));
-const QuestionGuide = dynamic(() => import('./chat/QuestionGuide'));
-const ImageBlock = dynamic(() => import('./chat/Image'));
+const ChatGuide = dynamic(() => import('./chat/Guide'), { ssr: false });
+const QuestionGuide = dynamic(() => import('./chat/QuestionGuide'), { ssr: false });
 
 export enum CodeClassName {
   guide = 'guide',
@@ -32,10 +30,16 @@ export enum CodeClassName {
   mermaid = 'mermaid',
   echarts = 'echarts',
   quote = 'quote',
-  img = 'img'
+  files = 'files'
 }
 
-const Markdown = ({ source, isChatting = false }: { source: string; isChatting?: boolean }) => {
+const Markdown = ({
+  source = '',
+  showAnimation = false
+}: {
+  source?: string;
+  showAnimation?: boolean;
+}) => {
   const components = useMemo<any>(
     () => ({
       img: Image,
@@ -48,16 +52,16 @@ const Markdown = ({ source, isChatting = false }: { source: string; isChatting?:
   );
 
   const formatSource = source
-    .replace(/\\n/g, '\n&nbsp;')
+    // .replace(/\\n/g, '\n')
     .replace(/(http[s]?:\/\/[^\s，。]+)([。，])/g, '$1 $2')
     .replace(/\n*(\[QUOTE SIGN\]\(.*\))/g, '$1');
 
   return (
     <ReactMarkdown
       className={`markdown ${styles.markdown}
-      ${isChatting ? `${formatSource ? styles.waitingAnimation : styles.animation}` : ''}
+      ${showAnimation ? `${formatSource ? styles.waitingAnimation : styles.animation}` : ''}
     `}
-      remarkPlugins={[RemarkMath, RemarkGfm, RemarkBreaks]}
+      remarkPlugins={[RemarkMath, [RemarkGfm, { singleTilde: false }], RemarkBreaks]}
       rehypePlugins={[RehypeKatex]}
       components={components}
       linkTarget={'_blank'}
@@ -91,15 +95,13 @@ const Code = React.memo(function Code(e: any) {
     if (codeType === CodeClassName.echarts) {
       return <EChartsCodeBlock code={strChildren} />;
     }
-    if (codeType === CodeClassName.img) {
-      return <ImageBlock images={strChildren} />;
-    }
+
     return (
       <CodeLight className={className} inline={inline} match={match}>
         {children}
       </CodeLight>
     );
-  }, [codeType, className, inline, match, strChildren]);
+  }, [codeType, className, inline, match, children, strChildren]);
 
   return Component;
 });
@@ -129,7 +131,7 @@ const A = React.memo(function A({ children, ...props }: any) {
     );
   }
 
-  // quote link
+  // quote link(未使用)
   if (children?.length === 1 && typeof children?.[0] === 'string') {
     const text = String(children);
     if (text === MARKDOWN_QUOTE_SIGN && props.href) {
@@ -144,7 +146,7 @@ const A = React.memo(function A({ children, ...props }: any) {
             _hover={{
               color: 'primary.700'
             }}
-            onClick={() => getFileAndOpen(props.href)}
+            // onClick={() => getCollectionSourceAndOpen(props.href)}
           />
         </MyTooltip>
       );

@@ -17,9 +17,11 @@ import { EditorVariablePickerType } from './type.d';
 import { getNanoid } from '@fastgpt/global/common/string/tools';
 import FocusPlugin from './plugins/FocusPlugin';
 import { textToEditorState } from './utils';
+import { MaxLengthPlugin } from './plugins/MaxLengthPlugin';
 
 export default function Editor({
   h = 200,
+  maxLength,
   showResize = true,
   showOpenModal = true,
   onOpenModal,
@@ -27,17 +29,20 @@ export default function Editor({
   onChange,
   onBlur,
   value,
-  placeholder = ''
+  placeholder = '',
+  isFlow
 }: {
   h?: number;
+  maxLength?: number;
   showResize?: boolean;
   showOpenModal?: boolean;
   onOpenModal?: () => void;
   variables: EditorVariablePickerType[];
-  onChange?: (editorState: EditorState) => void;
+  onChange?: (editorState: EditorState, editor: LexicalEditor) => void;
   onBlur?: (editor: LexicalEditor) => void;
   value?: string;
   placeholder?: string;
+  isFlow?: boolean;
 }) {
   const [key, setKey] = useState(getNanoid(6));
   const [_, startSts] = useTransition();
@@ -75,13 +80,17 @@ export default function Editor({
   useEffect(() => {
     if (focus) return;
     setKey(getNanoid(6));
-  }, [value, variables, focus]);
+  }, [value, variables.length]);
 
   return (
     <Box position={'relative'} width={'full'} h={`${height}px`} cursor={'text'}>
       <LexicalComposer initialConfig={initialConfig} key={key}>
         <PlainTextPlugin
-          contentEditable={<ContentEditable className={styles.contentEditable} />}
+          contentEditable={
+            <ContentEditable
+              className={isFlow ? styles.contentEditable_isFlow : styles.contentEditable}
+            />
+          }
           placeholder={
             <Box
               position={'absolute'}
@@ -95,8 +104,8 @@ export default function Editor({
               overflow={'overlay'}
             >
               <Box
-                color={'myGray.500'}
-                fontSize={'xs'}
+                color={'myGray.400'}
+                fontSize={'mini'}
                 userSelect={'none'}
                 whiteSpace={'pre-wrap'}
                 wordBreak={'break-all'}
@@ -109,11 +118,12 @@ export default function Editor({
           ErrorBoundary={LexicalErrorBoundary}
         />
         <HistoryPlugin />
+        <MaxLengthPlugin maxLength={maxLength || 999999} />
         <FocusPlugin focus={focus} setFocus={setFocus} />
         <OnChangePlugin
-          onChange={(e) => {
+          onChange={(editorState, editor) => {
             startSts(() => {
-              onChange?.(e);
+              onChange?.(editorState, editor);
             });
           }}
         />
@@ -138,7 +148,7 @@ export default function Editor({
         <Box
           zIndex={10}
           position={'absolute'}
-          bottom={1}
+          bottom={0}
           right={2}
           cursor={'pointer'}
           onClick={onOpenModal}

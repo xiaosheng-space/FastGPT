@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo } from 'react';
-import { Box, useColorMode, Flex } from '@chakra-ui/react';
+import { Box, Flex } from '@chakra-ui/react';
 import { useRouter } from 'next/router';
-import { useLoading } from '@/web/common/hooks/useLoading';
+import { useLoading } from '@fastgpt/web/hooks/useLoading';
 import { useSystemStore } from '@/web/common/system/useSystemStore';
 import { throttle } from 'lodash';
 import { useQuery } from '@tanstack/react-query';
@@ -10,12 +10,13 @@ import { getUnreadCount } from '@/web/support/user/inform/api';
 import dynamic from 'next/dynamic';
 
 import Auth from './auth';
-import Navbar from './navbar';
-import NavbarPhone from './navbarPhone';
-const UpdateInviteModal = dynamic(
-  () => import('@/components/support/user/team/UpdateInviteModal'),
-  { ssr: false }
-);
+
+const Navbar = dynamic(() => import('./navbar'));
+const NavbarPhone = dynamic(() => import('./navbarPhone'));
+const UpdateInviteModal = dynamic(() => import('@/components/support/user/team/UpdateInviteModal'));
+const NotSufficientModal = dynamic(() => import('@/components/support/wallet/NotSufficientModal'));
+const SystemMsgModal = dynamic(() => import('@/components/support/user/inform/SystemMsgModal'));
+const ImportantInform = dynamic(() => import('@/components/support/user/inform/ImportantInform'));
 
 const pcUnShowLayoutRoute: Record<string, boolean> = {
   '/': true,
@@ -23,6 +24,7 @@ const pcUnShowLayoutRoute: Record<string, boolean> = {
   '/login/provider': true,
   '/login/fastlogin': true,
   '/chat/share': true,
+  '/chat/team': true,
   '/app/edit': true,
   '/chat': true,
   '/tools/price': true,
@@ -34,15 +36,15 @@ const phoneUnShowLayoutRoute: Record<string, boolean> = {
   '/login/provider': true,
   '/login/fastlogin': true,
   '/chat/share': true,
+  '/chat/team': true,
   '/tools/price': true,
   '/price': true
 };
 
 const Layout = ({ children }: { children: JSX.Element }) => {
   const router = useRouter();
-  const { colorMode, setColorMode } = useColorMode();
   const { Loading } = useLoading();
-  const { loading, setScreenWidth, isPc, feConfigs } = useSystemStore();
+  const { loading, setScreenWidth, isPc, feConfigs, isNotSufficientModal } = useSystemStore();
   const { userInfo } = useUserStore();
 
   const isChatPage = useMemo(
@@ -50,12 +52,7 @@ const Layout = ({ children }: { children: JSX.Element }) => {
     [router.pathname, router.query]
   );
 
-  useEffect(() => {
-    if (colorMode === 'dark' && router.pathname !== '/chat') {
-      setColorMode('light');
-    }
-  }, [colorMode, router.pathname, setColorMode]);
-
+  // listen screen width
   useEffect(() => {
     const resize = throttle(() => {
       setScreenWidth(document.documentElement.clientWidth);
@@ -70,17 +67,19 @@ const Layout = ({ children }: { children: JSX.Element }) => {
     };
   }, [setScreenWidth]);
 
-  const { data: unread = 0 } = useQuery(['getUnreadCount'], getUnreadCount, {
+  const { data, refetch: refetchUnRead } = useQuery(['getUnreadCount'], getUnreadCount, {
     enabled: !!userInfo && !!feConfigs.isPlus,
     refetchInterval: 10000
   });
+  const unread = data?.unReadCount || 0;
+  const importantInforms = data?.importantInforms || [];
 
   const isHideNavbar = !!pcUnShowLayoutRoute[router.pathname];
 
   return (
     <>
       <Box h={'100%'} bg={'myGray.100'}>
-        {isPc === true && (
+        {isPc ? (
           <>
             {isHideNavbar ? (
               <Auth>{children}</Auth>
@@ -95,8 +94,7 @@ const Layout = ({ children }: { children: JSX.Element }) => {
               </>
             )}
           </>
-        )}
-        {isPc === false && (
+        ) : (
           <>
             <Box h={'100%'} display={['block', 'none']}>
               {phoneUnShowLayoutRoute[router.pathname] || isChatPage ? (
@@ -115,8 +113,18 @@ const Layout = ({ children }: { children: JSX.Element }) => {
           </>
         )}
       </Box>
+      {feConfigs?.isPlus && (
+        <>
+          {!!userInfo && <UpdateInviteModal />}
+          {isNotSufficientModal && <NotSufficientModal />}
+          {!!userInfo && <SystemMsgModal />}
+          {!!userInfo && importantInforms.length > 0 && (
+            <ImportantInform informs={importantInforms} refetch={refetchUnRead} />
+          )}
+        </>
+      )}
+
       <Loading loading={loading} zIndex={999999} />
-      {!!userInfo && <UpdateInviteModal />}
     </>
   );
 };

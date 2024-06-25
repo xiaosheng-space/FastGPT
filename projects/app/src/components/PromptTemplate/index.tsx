@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import MyModal from '../MyModal';
+import MyModal from '@fastgpt/web/components/common/MyModal';
 import { Box, Button, Flex, Grid, useTheme } from '@chakra-ui/react';
 import { PromptTemplateItem } from '@fastgpt/global/core/ai/type.d';
 import { ModalBody, ModalFooter } from '@chakra-ui/react';
@@ -37,9 +37,9 @@ const PromptTemplate = ({
                 : {})}
               onClick={() => setSelectTemplateTitle(item)}
             >
-              <Box>{item.title}</Box>
+              <Box color={'myGray.900'}>{item.title}</Box>
 
-              <Box color={'myGray.600'} fontSize={'sm'} whiteSpace={'pre-wrap'}>
+              <Box color={'myGray.500'} fontSize={'xs'} whiteSpace={'pre-wrap'}>
                 {item.desc}
               </Box>
             </Box>

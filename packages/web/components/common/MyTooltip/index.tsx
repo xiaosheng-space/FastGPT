@@ -1,16 +1,18 @@
 import React from 'react';
-import { Tooltip, TooltipProps } from '@chakra-ui/react';
+import { Box, Tooltip, TooltipProps, css, useMediaQuery } from '@chakra-ui/react';
 
 interface Props extends TooltipProps {
   forceShow?: boolean;
 }
 
-const MyTooltip = ({ children, shouldWrapChildren = true, ...props }: Props) => {
-  return (
+const MyTooltip = ({ children, forceShow = false, shouldWrapChildren = true, ...props }: Props) => {
+  const [isPc] = useMediaQuery('(min-width: 900px)');
+
+  return isPc || forceShow ? (
     <Tooltip
-      className="tooltip"
+      className="chakra-tooltip"
       bg={'white'}
-      arrowShadowColor={' rgba(0,0,0,0.05)'}
+      arrowShadowColor={'rgba(0,0,0,0.05)'}
       hasArrow
       arrowSize={12}
       offset={[-15, 15]}
@@ -25,6 +27,8 @@ const MyTooltip = ({ children, shouldWrapChildren = true, ...props }: Props) => 
     >
       {children}
     </Tooltip>
+  ) : (
+    <>{children}</>
   );
 };
 

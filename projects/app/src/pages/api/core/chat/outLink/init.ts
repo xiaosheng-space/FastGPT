@@ -2,17 +2,19 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { jsonRes } from '@fastgpt/service/common/response';
 import { connectToDatabase } from '@/service/mongo';
 import type { InitChatResponse, InitOutLinkChatProps } from '@/global/core/chat/api.d';
-import { getGuideModule } from '@fastgpt/global/core/module/utils';
-import { getChatModelNameListByModules } from '@/service/core/app/module';
-import { ModuleOutputKeyEnum } from '@fastgpt/global/core/module/constants';
+import { getGuideModule, getAppChatConfig } from '@fastgpt/global/core/workflow/utils';
+import { getChatModelNameListByModules } from '@/service/core/app/workflow';
+import { DispatchNodeResponseKeyEnum } from '@fastgpt/global/core/workflow/runtime/constants';
 import { getChatItems } from '@fastgpt/service/core/chat/controller';
 import { MongoTeamMember } from '@fastgpt/service/support/user/team/teamMemberSchema';
 import { authOutLink } from '@/service/support/permission/auth/outLink';
 import { MongoApp } from '@fastgpt/service/core/app/schema';
-import { selectShareResponse } from '@/utils/service/core/chat';
+import { filterPublicNodeResponseData } from '@fastgpt/global/core/chat/utils';
 import { AppErrEnum } from '@fastgpt/global/common/error/code/app';
 import { MongoChat } from '@fastgpt/service/core/chat/chatSchema';
 import { ChatErrEnum } from '@fastgpt/global/common/error/code/chat';
+import { ChatRoleEnum } from '@fastgpt/global/core/chat/constants';
+import { getAppLatestVersion } from '@fastgpt/service/core/app/controller';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -39,18 +41,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw new Error(ChatErrEnum.unAuthChat);
     }
 
-    const { history } = await getChatItems({
-      appId: app._id,
-      chatId,
-      limit: 30,
-      field: `dataId obj value userGoodFeedback userBadFeedback ${
-        shareChat.responseDetail ? `adminFeedback ${ModuleOutputKeyEnum.responseData}` : ''
-      } `
-    });
+    const [{ history }, { nodes }] = await Promise.all([
+      getChatItems({
+        appId: app._id,
+        chatId,
+        limit: 30,
+        field: `dataId obj value userGoodFeedback userBadFeedback ${
+          shareChat.responseDetail
+            ? `adminFeedback ${DispatchNodeResponseKeyEnum.nodeResponse}`
+            : ''
+        } `
+      }),
+      getAppLatestVersion(app._id, app)
+    ]);
 
     // pick share response field
     history.forEach((item) => {
-      item.responseData = selectShareResponse({ responseData: item.responseData });
+      if (item.obj === ChatRoleEnum.AI) {
+        item.responseData = filterPublicNodeResponseData({ flowResponses: item.responseData });
+      }
     });
 
     jsonRes<InitChatResponse>(res, {
@@ -63,8 +72,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         variables: chat?.variables || {},
         history,
         app: {
-          userGuideModule: getGuideModule(app.modules),
-          chatModels: getChatModelNameListByModules(app.modules),
+          chatConfig: getAppChatConfig({
+            chatConfig: app.chatConfig,
+            systemConfigNode: getGuideModule(nodes),
+            storeVariables: chat?.variableList,
+            storeWelcomeText: chat?.welcomeText,
+            isPublicFetch: false
+          }),
+          chatModels: getChatModelNameListByModules(nodes),
           name: app.name,
           avatar: app.avatar,
           intro: app.intro

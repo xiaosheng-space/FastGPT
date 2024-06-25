@@ -4,6 +4,7 @@ import { DatasetSchemaType } from '@fastgpt/global/core/dataset/type.d';
 import {
   DatasetStatusEnum,
   DatasetStatusMap,
+  DatasetTypeEnum,
   DatasetTypeMap
 } from '@fastgpt/global/core/dataset/constants';
 import {
@@ -11,6 +12,7 @@ import {
   TeamMemberCollectionName
 } from '@fastgpt/global/support/user/team/constant';
 import { PermissionTypeEnum, PermissionTypeMap } from '@fastgpt/global/support/permission/constant';
+import { DatasetDefaultPermissionVal } from '@fastgpt/global/support/permission/dataset/constant';
 
 export const DatasetCollectionName = 'datasets';
 
@@ -39,7 +41,7 @@ const DatasetSchema = new Schema({
     type: String,
     enum: Object.keys(DatasetTypeMap),
     required: true,
-    default: 'dataset'
+    default: DatasetTypeEnum.dataset
   },
   status: {
     type: String,
@@ -61,12 +63,12 @@ const DatasetSchema = new Schema({
   vectorModel: {
     type: String,
     required: true,
-    default: 'text-embedding-ada-002'
+    default: 'text-embedding-3-small'
   },
   agentModel: {
     type: String,
     required: true,
-    default: 'gpt-3.5-turbo-16k'
+    default: 'gpt-3.5-turbo'
   },
   intro: {
     type: String,
@@ -88,6 +90,11 @@ const DatasetSchema = new Schema({
         default: 'body'
       }
     }
+  },
+  externalReadUrl: String,
+  defaultPermission: {
+    type: Number,
+    default: DatasetDefaultPermissionVal
   }
 });
 

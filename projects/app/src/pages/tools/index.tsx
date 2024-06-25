@@ -18,11 +18,6 @@ const Tools = () => {
       label: '我的知识库',
       link: '/dataset/list'
     },
-    {
-      icon: 'common/navbar/pluginLight',
-      label: '自定义模块',
-      link: '/plugin/list'
-    },
     ...(feConfigs?.show_git
       ? [
           {
@@ -38,6 +33,15 @@ const Tools = () => {
             icon: 'common/courseLight',
             label: '使用文档',
             link: getDocPath('/docs/intro')
+          }
+        ]
+      : []),
+    ...(feConfigs?.show_pay
+      ? [
+          {
+            icon: 'support/bill/priceLight',
+            label: '计费说明',
+            link: '/price'
           }
         ]
       : [])

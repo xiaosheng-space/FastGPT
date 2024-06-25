@@ -5,15 +5,20 @@ import { authCert } from '@fastgpt/service/support/permission/auth/common';
 import { UserUpdateParams } from '@/types/user';
 import { getAIApi, openaiBaseUrl } from '@fastgpt/service/core/ai/config';
 import { connectToDatabase } from '@/service/mongo';
+import { MongoTeamMember } from '@fastgpt/service/support/user/team/teamMemberSchema';
 
 /* update user info */
 export default async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
   try {
     await connectToDatabase();
-    const { avatar, timezone, openaiAccount } = req.body as UserUpdateParams;
+    const { avatar, timezone, openaiAccount, lafAccount } = req.body as UserUpdateParams;
 
-    const { userId } = await authCert({ req, authToken: true });
-
+    const { tmbId } = await authCert({ req, authToken: true });
+    const tmb = await MongoTeamMember.findById(tmbId);
+    if (!tmb) {
+      throw new Error('can not find it');
+    }
+    const userId = tmb.userId;
     // auth key
     if (openaiAccount?.key) {
       console.log('auth user openai key', openaiAccount?.key);
@@ -42,7 +47,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       {
         ...(avatar && { avatar }),
         ...(timezone && { timezone }),
-        openaiAccount: openaiAccount?.key ? openaiAccount : null
+        openaiAccount: openaiAccount?.key ? openaiAccount : null,
+        lafAccount: lafAccount?.token ? lafAccount : null
       }
     );
 
