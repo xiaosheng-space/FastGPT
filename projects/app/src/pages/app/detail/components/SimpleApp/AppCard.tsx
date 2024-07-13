@@ -10,7 +10,6 @@ import {
   Checkbox,
   ModalFooter
 } from '@chakra-ui/react';
-import { DragHandleIcon } from '@chakra-ui/icons';
 import { useRouter } from 'next/router';
 import { AppSchema } from '@fastgpt/global/core/app/type.d';
 import { useTranslation } from 'next-i18next';
@@ -28,11 +27,13 @@ import MyModal from '@fastgpt/web/components/common/MyModal';
 import { useRequest2 } from '@fastgpt/web/hooks/useRequest';
 import { postTransition2Workflow } from '@/web/core/app/api/app';
 import { AppTypeEnum } from '@fastgpt/global/core/app/constants';
+import { useSystem } from '@fastgpt/web/hooks/useSystem';
 
 const AppCard = () => {
   const router = useRouter();
   const { t } = useTranslation();
   const { appT } = useI18n();
+  const { isPc } = useSystem();
 
   const { appDetail, setAppDetail, onOpenInfoEdit, onDelApp } = useContextSelector(
     AppContext,
@@ -68,10 +69,10 @@ const AppCard = () => {
   return (
     <>
       {/* basic info */}
-      <Box px={6} py={4} position={'relative'}>
+      <Box px={[4, 6]} py={4} position={'relative'}>
         <Flex alignItems={'center'}>
           <Avatar src={appDetail.avatar} borderRadius={'md'} w={'28px'} />
-          <Box ml={3} fontWeight={'bold'} fontSize={'md'} flex={'1 0 0'}>
+          <Box ml={3} fontWeight={'bold'} fontSize={'md'} flex={'1 0 0'} color={'myGray.900'}>
             {appDetail.name}
           </Box>
         </Flex>
@@ -87,7 +88,7 @@ const AppCard = () => {
         >
           {appDetail.intro || t('core.app.tip.Add a intro to app')}
         </Box>
-        <HStack>
+        <HStack alignItems={'flex-end'}>
           <Button
             size={['sm', 'md']}
             variant={'whitePrimary'}
@@ -96,16 +97,6 @@ const AppCard = () => {
           >
             {t('core.Chat')}
           </Button>
-          {appDetail.permission.hasWritePer && feConfigs?.show_team_chat && (
-            <Button
-              size={['sm', 'md']}
-              variant={'whitePrimary'}
-              leftIcon={<DragHandleIcon w={'16px'} />}
-              onClick={() => setTeamTagsSet(appDetail)}
-            >
-              {t('common.Team Tags Set')}
-            </Button>
-          )}
           {appDetail.permission.hasManagePer && (
             <Button
               size={['sm', 'md']}
@@ -133,7 +124,16 @@ const AppCard = () => {
                       icon: 'core/app/type/workflow',
                       label: appT('Transition to workflow'),
                       onClick: () => setTransitionCreateNew(true)
-                    }
+                    },
+                    ...(appDetail.permission.hasWritePer && feConfigs?.show_team_chat
+                      ? [
+                          {
+                            icon: 'core/chat/fileSelect',
+                            label: t('common.Team Tags Set'),
+                            onClick: () => setTeamTagsSet(appDetail)
+                          }
+                        ]
+                      : [])
                   ]
                 },
                 {
@@ -150,13 +150,15 @@ const AppCard = () => {
             />
           )}
           <Box flex={1} />
-          <MyTag
-            type="borderFill"
-            colorSchema="gray"
-            onClick={() => (appDetail.permission.hasManagePer ? onOpenInfoEdit() : undefined)}
-          >
-            <PermissionIconText defaultPermission={appDetail.defaultPermission} fontSize={'md'} />
-          </MyTag>
+          {isPc && (
+            <MyTag
+              type="borderFill"
+              colorSchema="gray"
+              onClick={() => (appDetail.permission.hasManagePer ? onOpenInfoEdit() : undefined)}
+            >
+              <PermissionIconText defaultPermission={appDetail.defaultPermission} />
+            </MyTag>
+          )}
         </HStack>
       </Box>
       {TeamTagsSet && <TagsEditModal onClose={() => setTeamTagsSet(undefined)} />}

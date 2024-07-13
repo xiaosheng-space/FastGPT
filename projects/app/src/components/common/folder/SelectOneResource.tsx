@@ -136,7 +136,7 @@ const SelectOneResource = ({
                   </Flex>
                 )}
                 <Avatar ml={index !== 0 ? '0.5rem' : 0} src={item.avatar} w={'1.25rem'} />
-                <Box fontSize={['md', 'sm']} ml={2}>
+                <Box fontSize={['md', 'sm']} ml={2} className="textEllipsis">
                   {item.name}
                 </Box>
               </Flex>
@@ -155,7 +155,7 @@ const SelectOneResource = ({
   return loading ? (
     <Loading fixed={false} />
   ) : (
-    <Box maxH={maxH} overflow={'auto'}>
+    <Box maxH={maxH} h={'100%'} overflow={'auto'}>
       <Render list={concatRoot} />
     </Box>
   );

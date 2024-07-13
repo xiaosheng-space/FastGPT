@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { ModalBody, ModalFooter, Button } from '@chakra-ui/react';
 import MyModal from '@fastgpt/web/components/common/MyModal';
-import type { SelectAppItemType } from '@fastgpt/global/core/workflow/type/index.d';
+import { SelectAppItemType } from '@fastgpt/global/core/workflow/template/system/runApp/type';
 import { useTranslation } from 'next-i18next';
 import SelectOneResource from '@/components/common/folder/SelectOneResource';
 import {
@@ -27,7 +27,10 @@ const SelectAppModal = ({
 
   const getAppList = useCallback(
     async ({ parentId }: GetResourceFolderListProps) => {
-      return getMyApps({ parentId }).then((res) =>
+      return getMyApps({
+        parentId,
+        type: [AppTypeEnum.folder, AppTypeEnum.simple, AppTypeEnum.workflow]
+      }).then((res) =>
         res
           .filter((item) => !filterAppIds.includes(item._id))
           .map<GetResourceListItemResponse>((item) => ({

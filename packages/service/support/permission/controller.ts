@@ -7,6 +7,9 @@ import { AuthUserTypeEnum, PerResourceTypeEnum } from '@fastgpt/global/support/p
 import { authOpenApiKey } from '../openapi/auth';
 import { FileTokenQuery } from '@fastgpt/global/common/file/type';
 import { MongoResourcePermission } from './schema';
+import { ClientSession } from 'mongoose';
+import { ParentIdType } from '@fastgpt/global/common/parentFolder/type';
+import { ResourcePermissionType } from '@fastgpt/global/support/permission/type';
 
 export const getResourcePermission = async ({
   resourceType,
@@ -31,8 +34,44 @@ export const getResourcePermission = async ({
   }
   return per;
 };
+export async function getResourceAllClbs({
+  resourceId,
+  teamId,
+  resourceType,
+  session
+}: {
+  resourceId: ParentIdType;
+  teamId: string;
+  resourceType: PerResourceTypeEnum;
+  session?: ClientSession;
+}): Promise<ResourcePermissionType[]> {
+  if (!resourceId) return [];
+  return MongoResourcePermission.find(
+    {
+      resourceId,
+      resourceType: resourceType,
+      teamId: teamId
+    },
+    null,
+    {
+      session
+    }
+  ).lean();
+}
 export const delResourcePermissionById = (id: string) => {
   return MongoResourcePermission.findByIdAndRemove(id);
+};
+export const delResourcePermission = ({
+  session,
+  ...props
+}: {
+  resourceType: PerResourceTypeEnum;
+  resourceId: string;
+  teamId: string;
+  tmbId: string;
+  session?: ClientSession;
+}) => {
+  return MongoResourcePermission.deleteOne(props, { session });
 };
 
 /* 下面代码等迁移 */
@@ -85,7 +124,7 @@ export async function parseHeaderCert({
   async function authCookieToken(cookie?: string, token?: string) {
     // 获取 cookie
     const cookies = Cookie.parse(cookie || '');
-    const cookieToken = token || cookies.token;
+    const cookieToken = token || cookies[TokenName];
 
     if (!cookieToken) {
       return Promise.reject(ERROR_ENUM.unAuthorization);
@@ -198,12 +237,16 @@ export async function parseHeaderCert({
 }
 
 /* set cookie */
+export const TokenName = 'fastgpt_token';
 export const setCookie = (res: NextApiResponse, token: string) => {
-  res.setHeader('Set-Cookie', `token=${token}; Path=/; HttpOnly; Max-Age=604800; Samesite=Strict;`);
+  res.setHeader(
+    'Set-Cookie',
+    `${TokenName}=${token}; Path=/; HttpOnly; Max-Age=604800; Samesite=Strict;`
+  );
 };
 /* clear cookie */
 export const clearCookie = (res: NextApiResponse) => {
-  res.setHeader('Set-Cookie', 'token=; Path=/; Max-Age=0');
+  res.setHeader('Set-Cookie', `${TokenName}=; Path=/; Max-Age=0`);
 };
 
 /* file permission */

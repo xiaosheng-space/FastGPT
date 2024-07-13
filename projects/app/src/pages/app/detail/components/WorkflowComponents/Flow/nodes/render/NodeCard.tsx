@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Button, Card, Flex } from '@chakra-ui/react';
 import MyIcon from '@fastgpt/web/components/common/Icon';
 import Avatar from '@/components/Avatar';
-import type { FlowNodeItemType } from '@fastgpt/global/core/workflow/type/index.d';
+import type { FlowNodeItemType } from '@fastgpt/global/core/workflow/type/node.d';
 import { useTranslation } from 'next-i18next';
 import { useEditTitle } from '@/web/common/hooks/useEditTitle';
 import { useToast } from '@fastgpt/web/hooks/useToast';
@@ -16,7 +16,7 @@ import { useDebug } from '../../hooks/useDebug';
 import { ResponseBox } from '@/components/ChatBox/components/WholeResponseModal';
 import EmptyTip from '@fastgpt/web/components/common/EmptyTip';
 import { getPreviewPluginNode } from '@/web/core/app/api/plugin';
-import { storeNode2FlowNode, updateFlowNodeVersion } from '@/web/core/workflow/utils';
+import { storeNode2FlowNode, getLatestNodeTemplate } from '@/web/core/workflow/utils';
 import { getNanoid } from '@fastgpt/global/common/string/tools';
 import { useContextSelector } from 'use-context-selector';
 import { WorkflowContext } from '../../../context';
@@ -24,9 +24,8 @@ import { useI18n } from '@/web/context/I18n';
 import { moduleTemplatesFlat } from '@fastgpt/global/core/workflow/template/constants';
 import { QuestionOutlineIcon } from '@chakra-ui/icons';
 import MyTooltip from '@fastgpt/web/components/common/MyTooltip';
-import { useSystemStore } from '@/web/common/system/useSystemStore';
-import { useMount } from 'ahooks';
 import { useRequest2 } from '@fastgpt/web/hooks/useRequest';
+import { useWorkflowUtils } from '../../hooks/useUtils';
 
 type Props = FlowNodeItemType & {
   children?: React.ReactNode | React.ReactNode[] | string;
@@ -55,13 +54,11 @@ const NodeCard = (props: Props) => {
     minW = '300px',
     maxW = '600px',
     nodeId,
-    flowNodeType,
     selected,
     menuForbid,
     isTool = false,
     isError = false,
-    debugResult,
-    pluginId
+    debugResult
   } = props;
 
   const nodeList = useContextSelector(WorkflowContext, (v) => v.nodeList);
@@ -105,12 +102,12 @@ const NodeCard = (props: Props) => {
   );
   const hasNewVersion = newNodeVersion && newNodeVersion !== node?.version;
 
-  const template = moduleTemplatesFlat.find((item) => item.flowNodeType === node?.flowNodeType);
-
-  const onClickSyncVersion = useCallback(async () => {
-    try {
+  const { runAsync: onClickSyncVersion } = useRequest2(
+    async () => {
+      const template = moduleTemplatesFlat.find((item) => item.flowNodeType === node?.flowNodeType);
       if (!node || !template) return;
-      if (node?.flowNodeType === 'pluginModule') {
+
+      if (node?.flowNodeType === FlowNodeTypeEnum.pluginModule) {
         if (!node.pluginId) return;
         onResetNode({
           id: nodeId,
@@ -119,14 +116,15 @@ const NodeCard = (props: Props) => {
       } else {
         onResetNode({
           id: nodeId,
-          node: updateFlowNodeVersion(node, template)
+          node: getLatestNodeTemplate(node, template)
         });
       }
       await getNodeVersion();
-    } catch (error) {
-      console.error('Error fetching plugin module:', error);
+    },
+    {
+      refreshDeps: [node, nodeId, onResetNode, getNodeVersion]
     }
-  }, [getNodeVersion, node, nodeId, onResetNode, template]);
+  );
 
   /* Node header */
   const Header = useMemo(() => {
@@ -196,12 +194,7 @@ const NodeCard = (props: Props) => {
               </MyTooltip>
             )}
           </Flex>
-          <MenuRender
-            nodeId={nodeId}
-            pluginId={pluginId}
-            flowNodeType={flowNodeType}
-            menuForbid={menuForbid}
-          />
+          <MenuRender nodeId={nodeId} menuForbid={menuForbid} />
           <NodeIntro nodeId={nodeId} intro={intro} />
         </Box>
         <ConfirmSyncModal />
@@ -218,8 +211,6 @@ const NodeCard = (props: Props) => {
     appT,
     onOpenConfirmSync,
     onClickSyncVersion,
-    pluginId,
-    flowNodeType,
     intro,
     ConfirmSyncModal,
     onOpenCustomTitleModal,
@@ -273,13 +264,9 @@ export default React.memo(NodeCard);
 
 const MenuRender = React.memo(function MenuRender({
   nodeId,
-  pluginId,
-  flowNodeType,
   menuForbid
 }: {
   nodeId: string;
-  pluginId?: string;
-  flowNodeType: Props['flowNodeType'];
   menuForbid?: Props['menuForbid'];
 }) {
   const { t } = useTranslation();
@@ -292,6 +279,7 @@ const MenuRender = React.memo(function MenuRender({
 
   const setNodes = useContextSelector(WorkflowContext, (v) => v.setNodes);
   const setEdges = useContextSelector(WorkflowContext, (v) => v.setEdges);
+  const { computedNewNodeName } = useWorkflowUtils();
 
   const onCopyNode = useCallback(
     (nodeId: string) => {
@@ -300,7 +288,11 @@ const MenuRender = React.memo(function MenuRender({
         if (!node) return state;
         const template = {
           avatar: node.data.avatar,
-          name: node.data.name,
+          name: computedNewNodeName({
+            templateName: node.data.name,
+            flowNodeType: node.data.flowNodeType,
+            pluginId: node.data.pluginId
+          }),
           intro: node.data.intro,
           flowNodeType: node.data.flowNodeType,
           inputs: node.data.inputs,
@@ -323,12 +315,13 @@ const MenuRender = React.memo(function MenuRender({
               inputs: template.inputs,
               outputs: template.outputs,
               version: template.version
-            }
+            },
+            selected: true
           })
         );
       });
     },
-    [setNodes]
+    [computedNewNodeName, setNodes]
   );
   const onDelNode = useCallback(
     (nodeId: string) => {

@@ -54,17 +54,22 @@ const Edit = ({
       flex={'1 0 0'}
       h={0}
       pt={[2, 1.5]}
-      pl={[2, 1]}
       gap={1}
       borderRadius={'lg'}
       overflowY={['auto', 'unset']}
     >
-      <Box className={styles.EditAppBox} pr={[0, 1]} overflowY={'auto'} minW={'580px'} flex={'1'}>
+      <Box
+        className={styles.EditAppBox}
+        pr={[0, 1]}
+        overflowY={'auto'}
+        minW={['auto', '580px']}
+        flex={'1'}
+      >
         <Box {...cardStyles} boxShadow={'2'}>
           <AppCard />
         </Box>
 
-        <Box mt={4} {...cardStyles} boxShadow={'3.5'} w={'auto'}>
+        <Box mt={4} {...cardStyles} boxShadow={'3.5'}>
           <EditForm appForm={appForm} setAppForm={setAppForm} />
         </Box>
       </Box>

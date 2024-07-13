@@ -49,16 +49,17 @@ const OutLink = ({ appName, appIntro, appAvatar }: Props) => {
     shareId = '',
     chatId = '',
     showHistory = '1',
+    showHead = '1',
     authToken,
     ...customVariables
   } = router.query as {
     shareId: string;
     chatId: string;
     showHistory: '0' | '1';
+    showHead: '0' | '1';
     authToken: string;
     [key: string]: string;
   };
-  const { toast } = useToast();
   const { isPc } = useSystemStore();
   const ChatBoxRef = useRef<ComponentRef>(null);
   const initSign = useRef(false);
@@ -132,7 +133,8 @@ const OutLink = ({ appName, appIntro, appAvatar }: Props) => {
       // update chat window
       setChatData((state) => ({
         ...state,
-        title: newTitle
+        title: newTitle,
+        history: ChatBoxRef.current?.getChatHistories() || state.history
       }));
 
       // hook message
@@ -206,10 +208,6 @@ const OutLink = ({ appName, appIntro, appAvatar }: Props) => {
       },
       onError(e: any) {
         console.log(e);
-        toast({
-          status: 'error',
-          title: getErrText(e, t('core.shareChat.Init Error'))
-        });
         if (chatId) {
           onChangeChatId('');
         }
@@ -294,12 +292,14 @@ const OutLink = ({ appName, appIntro, appAvatar }: Props) => {
             flexDirection={'column'}
           >
             {/* header */}
-            <ChatHeader
-              appAvatar={chatData.app.avatar}
-              appName={chatData.app.name}
-              history={chatData.history}
-              showHistory={showHistory === '1'}
-            />
+            {showHead === '1' ? (
+              <ChatHeader
+                appAvatar={chatData.app.avatar}
+                appName={chatData.app.name}
+                history={chatData.history}
+                showHistory={showHistory === '1'}
+              />
+            ) : null}
             {/* chat box */}
             <Box flex={1}>
               <ChatBox

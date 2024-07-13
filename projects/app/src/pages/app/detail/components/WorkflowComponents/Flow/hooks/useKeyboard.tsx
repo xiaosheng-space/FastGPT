@@ -3,14 +3,16 @@ import { getNanoid } from '@fastgpt/global/common/string/tools';
 import { useCopyData } from '@/web/common/hooks/useCopyData';
 import { useTranslation } from 'next-i18next';
 import { Node } from 'reactflow';
-import { FlowNodeItemType } from '@fastgpt/global/core/workflow/type';
+import { FlowNodeItemType } from '@fastgpt/global/core/workflow/type/node';
 import { useContextSelector } from 'use-context-selector';
 import { WorkflowContext, getWorkflowStore } from '../../context';
+import { useWorkflowUtils } from './useUtils';
 
 export const useKeyboard = () => {
   const { t } = useTranslation();
   const { setNodes, onSaveWorkflow } = useContextSelector(WorkflowContext, (v) => v);
   const { copyData } = useCopyData();
+  const { computedNewNodeName } = useWorkflowUtils();
 
   const [isDowningCtrl, setIsDowningCtrl] = useState(false);
 
@@ -56,6 +58,11 @@ export const useKeyboard = () => {
             id: nodeId,
             data: {
               ...item.data,
+              name: computedNewNodeName({
+                templateName: item.data?.name || '',
+                flowNodeType: item.data?.flowNodeType || '',
+                pluginId: item.data?.pluginId
+              }),
               nodeId
             },
             position: {
@@ -75,7 +82,7 @@ export const useKeyboard = () => {
           .concat(newNodes)
       );
     } catch (error) {}
-  }, [hasInputtingElement, setNodes]);
+  }, [computedNewNodeName, hasInputtingElement, setNodes]);
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {

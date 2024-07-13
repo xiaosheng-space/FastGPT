@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Box, Grid, Flex, IconButton, HStack } from '@chakra-ui/react';
 import { useRouter } from 'next/router';
-import { delAppById, putAppById } from '@/web/core/app/api';
+import { delAppById, putAppById, resumeInheritPer } from '@/web/core/app/api';
 import { useConfirm } from '@fastgpt/web/hooks/useConfirm';
 import MyIcon from '@fastgpt/web/components/common/Icon';
 import Avatar from '@/components/Avatar';
@@ -13,7 +13,7 @@ import MyBox from '@fastgpt/web/components/common/MyBox';
 import { useRequest2 } from '@fastgpt/web/hooks/useRequest';
 import { useContextSelector } from 'use-context-selector';
 import { AppListContext } from './context';
-import { AppTypeEnum } from '@fastgpt/global/core/app/constants';
+import { AppFolderTypeList, AppTypeEnum } from '@fastgpt/global/core/app/constants';
 import { useFolderDrag } from '@/components/common/folder/useFolderDrag';
 import dynamic from 'next/dynamic';
 import type { EditResourceInfoFormType } from '@/components/common/Modal/EditResourceModal';
@@ -37,19 +37,28 @@ import type { EditHttpPluginProps } from './HttpPluginEditModal';
 import { postCopyApp } from '@/web/core/app/api/app';
 import { getTeamMembers } from '@/web/support/user/team/api';
 import { formatTimeToChatTime } from '@fastgpt/global/common/string/time';
+import { useSystem } from '@fastgpt/web/hooks/useSystem';
+import { useSystemStore } from '@/web/common/system/useSystemStore';
 const HttpEditModal = dynamic(() => import('./HttpPluginEditModal'));
 
 const ListItem = () => {
   const { t } = useTranslation();
-  const { appT } = useI18n();
+  const { appT, commonT } = useI18n();
   const router = useRouter();
-  const { myApps, loadMyApps, onUpdateApp, setMoveAppId, folderDetail, appType } =
-    useContextSelector(AppListContext, (v) => v);
+  const { parentId = null } = router.query;
+  const { isPc } = useSystem();
+
+  const { myApps, loadMyApps, onUpdateApp, setMoveAppId, folderDetail } = useContextSelector(
+    AppListContext,
+    (v) => v
+  );
   const [loadingAppId, setLoadingAppId] = useState<string>();
 
   const [editedApp, setEditedApp] = useState<EditResourceInfoFormType>();
   const [editHttpPlugin, setEditHttpPlugin] = useState<EditHttpPluginProps>();
   const [editPerAppIndex, setEditPerAppIndex] = useState<number>();
+  const { feConfigs } = useSystemStore();
+
   const editPerApp = useMemo(
     () => (editPerAppIndex !== undefined ? myApps[editPerAppIndex] : undefined),
     [editPerAppIndex, myApps]
@@ -97,14 +106,31 @@ const ListItem = () => {
   });
 
   const { data: members = [] } = useRequest2(getTeamMembers, {
-    manual: false
+    manual: !feConfigs.isPlus
   });
+
+  const { runAsync: onResumeInheritPermission } = useRequest2(
+    () => {
+      return resumeInheritPer(editPerApp!._id);
+    },
+    {
+      manual: true,
+      errorToast: commonT('permission.Resume InheritPermission Failed'),
+      onSuccess() {
+        loadMyApps();
+      }
+    }
+  );
 
   return (
     <>
       <Grid
-        py={[4, 6]}
-        gridTemplateColumns={['1fr', 'repeat(2,1fr)', 'repeat(3,1fr)', 'repeat(4,1fr)']}
+        py={4}
+        gridTemplateColumns={
+          folderDetail
+            ? ['1fr', 'repeat(2,1fr)', 'repeat(2,1fr)', 'repeat(3,1fr)']
+            : ['1fr', 'repeat(2,1fr)', 'repeat(3,1fr)', 'repeat(3,1fr)', 'repeat(4,1fr)']
+        }
         gridGap={5}
         alignItems={'stretch'}
       >
@@ -126,15 +152,14 @@ const ListItem = () => {
                 isLoading={loadingAppId === app._id}
                 lineHeight={1.5}
                 h="100%"
-                pt={4}
+                pt={5}
                 pb={3}
                 px={5}
                 cursor={'pointer'}
                 border={'base'}
                 boxShadow={'2'}
                 bg={'white'}
-                borderRadius={'md'}
-                userSelect={'none'}
+                borderRadius={'lg'}
                 position={'relative'}
                 display={'flex'}
                 flexDirection={'column'}
@@ -149,7 +174,7 @@ const ListItem = () => {
                   }
                 }}
                 onClick={() => {
-                  if (app.type === AppTypeEnum.folder || app.type === AppTypeEnum.httpPlugin) {
+                  if (AppFolderTypeList.includes(app.type)) {
                     router.push({
                       query: {
                         ...router.query,
@@ -167,28 +192,25 @@ const ListItem = () => {
                   isFolder: app.type === AppTypeEnum.folder
                 })}
               >
-                {/* <Box position={'absolute'} top={3.5} right={0}>
-                  <AppTypeTag type={app.type} />
-                </Box> */}
                 <HStack>
-                  <Avatar src={app.avatar} borderRadius={'md'} w={'1.3rem'} />
-                  <Box flex={'1'} wordBreak={'break-all'}>
+                  <Avatar src={app.avatar} borderRadius={'sm'} w={'1.5rem'} />
+                  <Box flex={'1 0 0'} color={'myGray.900'}>
                     {app.name}
                   </Box>
-                  <Box alignSelf={'flex-start'} mr={'-1.25rem'}>
+                  <Box mr={'-1.25rem'}>
                     <AppTypeTag type={app.type} />
                   </Box>
                 </HStack>
                 <Box
-                  flex={'1'}
-                  className={'textEllipsis3'}
-                  my={2}
+                  flex={['1 0 60px', '1 0 72px']}
+                  mt={3}
+                  pr={8}
+                  textAlign={'justify'}
                   wordBreak={'break-all'}
-                  fontSize={'mini'}
-                  color={'myGray.600'}
-                  minH={'32px'}
+                  fontSize={'xs'}
+                  color={'myGray.500'}
                 >
-                  {app.intro || '还没写介绍~'}
+                  <Box className={'textEllipsis2'}>{app.intro || '还没写介绍~'}</Box>
                 </Box>
                 <Flex
                   h={'24px'}
@@ -198,23 +220,30 @@ const ListItem = () => {
                   color={'myGray.500'}
                 >
                   <HStack spacing={3.5}>
-                    {/* {owner && (
+                    {owner && (
                       <HStack spacing={1}>
-                        <Avatar src={owner.avatar} w={'0.9rem'} />
+                        <Avatar src={owner.avatar} w={'0.875rem'} borderRadius={'50%'} />
                         <Box maxW={'150px'} className="textEllipsis">
                           {owner.memberName}
                         </Box>
                       </HStack>
-                    )} */}
+                    )}
 
-                    <PermissionIconText defaultPermission={app.defaultPermission} />
+                    <PermissionIconText
+                      defaultPermission={app.defaultPermission}
+                      color={'myGray.500'}
+                      iconColor={'myGray.400'}
+                      w={'0.875rem'}
+                    />
                   </HStack>
 
                   <HStack>
-                    {/* <HStack spacing={0.5} className="time">
-                      <MyIcon name={'history'} w={'0.85rem'} />
-                      <Box>{formatTimeToChatTime(app.updateTime)}</Box>
-                    </HStack> */}
+                    {isPc && (
+                      <HStack spacing={0.5} className="time">
+                        <MyIcon name={'history'} w={'0.85rem'} color={'myGray.400'} />
+                        <Box color={'myGray.500'}>{formatTimeToChatTime(app.updateTime)}</Box>
+                      </HStack>
+                    )}
                     {app.permission.hasManagePer && (
                       <Box className="more" display={['', 'none']}>
                         <MyMenu
@@ -222,11 +251,26 @@ const ListItem = () => {
                             <IconButton
                               size={'xsSquare'}
                               variant={'transparentBase'}
-                              icon={<MyIcon name={'more'} w={'0.8rem'} />}
+                              icon={<MyIcon name={'more'} w={'0.875rem'} color={'myGray.500'} />}
                               aria-label={''}
                             />
                           }
                           menuList={[
+                            ...([AppTypeEnum.simple, AppTypeEnum.workflow].includes(app.type)
+                              ? [
+                                  {
+                                    children: [
+                                      {
+                                        icon: 'core/chat/chatLight',
+                                        label: appT('Go to chat'),
+                                        onClick: () => {
+                                          router.push(`/chat?appId=${app._id}`);
+                                        }
+                                      }
+                                    ]
+                                  }
+                                ]
+                              : []),
                             {
                               children: [
                                 {
@@ -271,27 +315,21 @@ const ListItem = () => {
                                   : [])
                               ]
                             },
-                            {
-                              children: [
-                                {
-                                  icon: 'copy',
-                                  label: appT('Copy one app'),
-                                  onClick: () =>
-                                    openConfirmCopy(() => onclickCopy({ appId: app._id }))()
-                                }
-                              ]
-                            },
-                            {
-                              children: [
-                                {
-                                  icon: 'core/chat/chatLight',
-                                  label: appT('Go to chat'),
-                                  onClick: () => {
-                                    router.push(`/chat?appId=${app._id}`);
+                            ...(AppFolderTypeList.includes(app.type)
+                              ? []
+                              : [
+                                  {
+                                    children: [
+                                      {
+                                        icon: 'copy',
+                                        label: appT('Copy one app'),
+                                        onClick: () =>
+                                          openConfirmCopy(() => onclickCopy({ appId: app._id }))()
+                                      }
+                                    ]
                                   }
-                                }
-                              ]
-                            },
+                                ]),
+
                             ...(app.permission.isOwner
                               ? [
                                   {
@@ -341,6 +379,10 @@ const ListItem = () => {
       )}
       {!!editPerApp && (
         <ConfigPerModal
+          refetchResource={loadMyApps}
+          hasParent={Boolean(parentId)}
+          resumeInheritPermission={onResumeInheritPermission}
+          isInheritPermission={editPerApp.inheritPermission}
           avatar={editPerApp.avatar}
           name={editPerApp.name}
           defaultPer={{
@@ -371,7 +413,8 @@ const ListItem = () => {
               deleteAppCollaborators({
                 appId: editPerApp._id,
                 tmbId
-              })
+              }),
+            refreshDeps: [editPerApp.inheritPermission]
           }}
           onClose={() => setEditPerAppIndex(undefined)}
         />
